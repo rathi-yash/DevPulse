@@ -39,4 +39,40 @@ app.get('/auth/github/callback', async (req, res) => {
     }
 });
 
+// Get Github Stats
+app.get('/api/stats', async (req, res) => {
+    const accessToken = req.query.token;
+    try {
+        const userRes = await axios.get('https://api.github.com/user', {
+            headers: {
+                Authorization: `Bearer ${accessToken}`
+            },
+        });
+        const username = userRes.data.login;
+        const eventsRes = await axios.get(`https://api.github.com/users/${username}/events`, {
+            headers: {
+                Authorization: `Bearer ${accessToken}`
+            },
+        });
+        const commits = eventsRes.data
+            .filter(event => event.type === 'PushEvent')
+            .slice(0,30)
+            .map(event => ({
+                date: event.creates_at,
+                repo: event.repo.name,
+            }));
+        const prs = eventsRes.data
+            .filter(event => event.type === 'PullRequestEvent')
+            .slice(0,30)
+            .map(event => ({
+                date: event.creates_at,
+                action: event.payload.action,
+                repo: event.repo.name,
+            }));
+        res.json({ commits, prs });
+    } catch (error) {
+        res.status(500).send('Error fetching stats', error);
+    }
+});
+
 app.listen(process.env.PORT, () => console.log(`Server running on port ${process.env.PORT}`));
